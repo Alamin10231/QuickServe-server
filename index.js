@@ -93,6 +93,28 @@ async function run() {
       const result = await datacollection.deleteOne(query);
       res.send(result);
     });
+    // update
+    // Add this route before other routes
+    app.get("/services/:id", async (req, res) => {
+      try {
+        const id = req.params.id;
+        const query = { _id: new ObjectId(id) };
+        const result = await datacollection.findOne(query);
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ error: "Server error" });
+      }
+    });
+    app.put("/services/:id", async (req, res) => {
+      const { id } = req.params;
+
+      const result = await datacollection.updateOne(
+        { _id: new ObjectId(id) },
+        { $set: req.body }
+      );
+
+      res.send(result);
+    });
 
     await client.connect();
     // Send a ping to confirm a successful connection
