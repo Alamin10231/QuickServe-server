@@ -71,7 +71,6 @@ async function run() {
     // });
     app.get("/bookings", async (req, res) => {
       const result = await bookingscollection.find().toArray();
-      // ✅ চেক করুন
       res.send(result);
     });
     app.post("/bookings", async (req, res) => {
@@ -86,6 +85,14 @@ async function run() {
     //   console.log("Inserted Result:", result); // ✅ MongoDB তে ইনসার্ট হয়েছে কিনা চেক করুন
     //   res.send(result);
     // });
+
+    // delete item
+    app.delete("/manage/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await datacollection.deleteOne(query);
+      res.send(result);
+    });
 
     await client.connect();
     // Send a ping to confirm a successful connection
