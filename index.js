@@ -1,12 +1,46 @@
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const express = require("express");
 const cors = require("cors");
+const jwt = require("jsonwebtoken");
+const cookieParser = require("cookie-parser");
 const port = process.env.PORT || 5000;
 require("dotenv").config();
 const app = express();
 
-app.use(cors());
+app.use(
+  cors({
+    origin: [
+      "http://localhost:5173",
+      "https://quickserve-f419b.web.app",
+      "https://quickserve-f419b.firebaseapp.com",
+    ],
+    credentials: true,
+  })
+);
 app.use(express.json());
+app.use(cookieParser());
+const verifytoken = (req, res, next) => {
+  const token = req.cookies?.token;
+
+  if (!token) {
+    return res
+      .status(401)
+      .send({ message: "Unauthorized - No Token Provided" });
+  }
+  if (!process.env.ACCESS_TOKEN_SECRET) {
+    console.error("JWT_SECRET is missing!");
+    return res.status(500).json({ message: "Internal Server Error" });
+  }
+
+  jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
+    if (err) {
+      return res.status(403).send({ message: "Forbidden - Invalid Token" });
+    }
+
+    req.user = decoded; // Store decoded user info in `req.user`
+    next(); // Proceed to the next middleware
+  });
+};
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.s3d9m.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
@@ -39,7 +73,7 @@ async function run() {
       res.send(result);
     });
     // add product
-    app.get("/addservices/:id", async (req, res) => {
+    app.get("/addservices/:id", verifytoken, async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
       const result = await datacollection.findOne(query);
@@ -62,13 +96,7 @@ async function run() {
       const result = await bookingcollection.insertOne(data);
       res.send(result);
     });
-    // for pusches button press then go to table and show data
-    // app.get("/bookings/:id", async (req, res) => {
-    //   const id = req.params.id;
-    //   const query = { _id: new ObjectId(id) };
-    //   const result = await bookingscollection.findOne(query);
-    //   res.send(result);
-    // });
+
     app.get("/bookings", async (req, res) => {
       const result = await bookingscollection.find().toArray();
       res.send(result);
@@ -78,13 +106,6 @@ async function run() {
       const result = await bookingscollection.insertOne(data);
       res.send(result);
     });
-    //     app.post("/bookings", async (req, res) => {
-    //   const data = req.body;
-    //   console.log("Received Data:", data); // ✅ চেক করুন
-    //   const result = await bookingscollection.insertOne(data);
-    //   console.log("Inserted Result:", result); // ✅ MongoDB তে ইনসার্ট হয়েছে কিনা চেক করুন
-    //   res.send(result);
-    // });
 
     // delete item
     app.delete("/manage/:id", async (req, res) => {
@@ -100,6 +121,7 @@ async function run() {
         const id = req.params.id;
         const query = { _id: new ObjectId(id) };
         const result = await datacollection.findOne(query);
+
         res.send(result);
       } catch (error) {
         res.status(500).send({ error: "Server error" });
@@ -116,12 +138,38 @@ async function run() {
       res.send(result);
     });
 
-    await client.connect();
+    // jwt
+    app.post("/jwt", async (req, res) => {
+      const user = req.body;
+      const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {
+        expiresIn: "69d",
+      });
+      res
+        .cookie("token", token, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === "production",
+          sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
+        })
+        .send({ success: true });
+    });
+    // jwt delete cookie token
+
+    app.post("/logout", async (req, res) => {
+      res
+        .cookie("token", {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === "production",
+          sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
+        })
+        .send({ success: true });
+    });
+
+    // await client.connect();
     // Send a ping to confirm a successful connection
-    await client.db("admin").command({ ping: 1 });
-    console.log(
-      "Pinged your deployment. You successfully connected to MongoDB!"
-    );
+    // await client.db("admin").command({ ping: 1 });
+    // console.log(
+    //   "Pinged your deployment. You successfully connected to MongoDB!"
+    // );
   } finally {
     // Ensures that the client will close when you finish/error
     //     await client.close();
